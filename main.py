@@ -18,6 +18,7 @@ import base64
 import tempfile
 import re
 from gtts import gTTS
+import asyncio
 
 # Load env
 load_dotenv()
@@ -45,13 +46,20 @@ AI_MODES = {
     "default": {
         "label": "🤖 Default AI",
         "system": """
-You are an advanced AI assistant like ChatGPT.
-- Smart, friendly, modern, human-like, helpful, slightly funny.
+You are Stack AI Bot.
+
+Rules:
+- Talk naturally like a real human assistant.
+- Keep replies short and smart.
+- Maximum 3-5 lines normally.
+- Never give code unless user asks for coding.
+- Never write essays.
+- Avoid robotic AI language.
+- Sound friendly and modern.
 - Use emojis naturally 😄🔥.
+- If user talks casually, reply casually.
 - If user talks in Hinglish, reply in Hinglish.
-- If user talks in English, reply only in English.
-- Keep replies short unless needed.
-- Never sound robotic.
+- If user talks in English, reply in English.
 """
     },
     "teacher": {
@@ -370,7 +378,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant. Answer the user's search query with accurate, up-to-date information. Keep it concise and useful."
+                        "content": "Reply naturally and shortly like ChatGPT. Keep answers under 5 lines. Never give code unless user asks for programming help."
                     },
                     {
                         "role": "user",
@@ -423,14 +431,14 @@ Only return the final image prompt. Nothing else.
 
         response = requests.get(
             image_url,
-            timeout=180,
+            timeout=60,
             headers={"User-Agent": "Mozilla/5.0"}
         )
 
         if response.status_code == 200:
             await update.message.reply_photo(
                 photo=response.content,
-                caption=f"🖼️ *AI Generated Image*\n\n_{final_prompt[:200]}_",
+                caption="🖼️ Here's your AI image 😄🔥",
                 parse_mode="Markdown"
             )
         else:
@@ -452,7 +460,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo_bytes = await file.download_as_bytearray()
         base64_image = base64.b64encode(photo_bytes).decode("utf-8")
 
-        user_text = update.message.caption or "Describe this image in detail."
+        user_text = (
+    update.message.caption
+    or "Describe this image briefly like a human. Mention important objects and actions only."
+)
 
         chat_completion = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -670,7 +681,7 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_memory()
 
     try:
-        mode_label = get_mode_label(user_id)
+    
         sent_msg = await update.message.reply_text(str(ai_reply)[:3000])
         if user_id not in bot_messages:
             bot_messages[user_id] = []
@@ -687,7 +698,15 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── APP SETUP ────────────────────────────────────────────────────────────────
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+app = (
+    ApplicationBuilder()
+    .token(BOT_TOKEN)
+    .connect_timeout(60)
+    .read_timeout(60)
+    .write_timeout(60)
+    .pool_timeout(60)
+    .build()
+)
 
 # Commands
 app.add_handler(CommandHandler("start", start))
@@ -700,7 +719,12 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("search", search))
 
 # Media handlers
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(
+    MessageHandler(
+        filters.PHOTO & ~filters.COMMAND,
+        handle_photo
+    )
+)
 app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
@@ -708,4 +732,9 @@ app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
 print("🤖 AI Bot is running...")
-app.run_polling()
+app.run_polling(
+    drop_pending_updates=True,
+    allowed_updates=Update.ALL_TYPES,
+    timeout=30,
+    bootstrap_retries=10
+)
