@@ -1,6 +1,0 @@
-python-telegram-bot
-groq
-python-dotenv
-requests
-gTTS
-pypdf
