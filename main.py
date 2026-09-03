@@ -1780,6 +1780,37 @@ async def error_handler(
 
 
 # ============================================================
+# RENDER HEALTH SERVER
+# ============================================================
+
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"Stack AI Bot is running")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+
+def start_health_server():
+    port = int(os.getenv("PORT", "10000"))
+    server = ThreadingHTTPServer(("0.0.0.0", port), HealthHandler)
+    print(f"Health server listening on 0.0.0.0:{port}")
+    server.serve_forever()
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
@@ -1915,6 +1946,10 @@ def main():
     print("   /hcverma on")
     print("   /hcverma off")
     print("================================")
+
+    # Render Web Services require an HTTP port to be open.
+    # The Telegram bot continues to use long polling in the main thread.
+    threading.Thread(target=start_health_server, daemon=True).start()
 
     app.run_polling(
         drop_pending_updates=True,
